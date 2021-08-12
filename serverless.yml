@@ -1,0 +1,59 @@
+custom:
+  stage: ${opt:stage, self:provider.stage}
+  settings:
+    STAGE: ${self:custom.stage}
+
+service: yourapp-auth
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: dev
+  # profile: your profile aws in local computer
+  memorySize: 256
+  region: ${opt:region, 'ap-northeast-1'}
+  environment: ${self:custom.settings}
+  iam:
+    role: arn:aws:iam::xxxxxx:role/yourapp-lambda-role
+  stackName: ${self:custom.stage}-yourapp-auth
+  timeout: 29
+  versionFunctions: false
+  # deploymentBucket:
+  #   name: ${self:custom.stage}-yourapp-lambda-resource
+  apiGateway:
+    restApiId: yourapp-restApiId
+
+functions:
+
+  Authorizer:
+    handler: authHandler.authorizer
+    tags:
+      Name: ${self:custom.stage}-yourapp-authorizer
+      Owner: yourapp-${self:custom.stage}
+
+resources:
+  Resources:
+
+    DevYourAppApiGatewayAuthorizer:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        AuthorizerResultTtlInSeconds: 0
+        IdentitySource: method.request.header.Authorization
+        AuthorizerUri:
+          Fn::Join:
+            - ''
+            - - 'arn:aws:apigateway:'
+              - !Ref AWS::Region
+              - ':lambda:path/2015-03-31/functions/'
+              - !GetAtt AuthorizerLambdaFunction.Arn
+              - '/invocations'
+        Name: ${self:custom.stage}-yourapp-authorizer
+        RestApiId: yourapp-restApiId
+        Type: TOKEN
+
+  Outputs:
+    DevYourAppApiGatewayAuthorizerId:
+      Value:
+        Ref: DevYourAppApiGatewayAuthorizer
+      Export:
+        Name: ${self:custom.stage}-YourApp-ApiGatewayAuthorizerId
